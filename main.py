@@ -35,10 +35,17 @@ class Token(BaseModel):
 
 
 def hash_password(password: str) -> str:
+    # bcrypt supports up to 72 bytes; truncate to avoid backend errors
+    if isinstance(password, str):
+        password = password.encode("utf-8")
+    password = password[:72]
     return pwd_context.hash(password)
 
 
 def verify_password(password: str, hashed: str) -> bool:
+    if isinstance(password, str):
+        password = password.encode("utf-8")
+    password = password[:72]
     return pwd_context.verify(password, hashed)
 
 
