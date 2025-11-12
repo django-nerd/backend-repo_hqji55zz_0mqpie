@@ -374,6 +374,83 @@ def export_csv(user: dict = Depends(get_current_user)):
     return {"csv": f.getvalue()}
 
 
+# Excel export (Ingresos y Gastos)
+@app.get("/transactions/export.xlsx")
+def export_excel(user: dict = Depends(get_current_user)):
+    from io import BytesIO
+    from fastapi.responses import Response
+    from openpyxl import Workbook
+    from openpyxl.utils import get_column_letter
+    from openpyxl.styles import Alignment, Font
+
+    items = list(db["transaction"].find({"user_id": str(user["id"]) }).sort("date", 1))
+
+    wb = Workbook()
+    # Default sheet rename to "Ingresos"
+    ws_income = wb.active
+    ws_income.title = "Ingresos"
+    ws_expense = wb.create_sheet("Gastos")
+
+    headers = ["Fecha", "Categoría", "Monto", "Nota"]
+
+    def setup_sheet(ws):
+        ws.append(headers)
+        # Bold header
+        for col in range(1, len(headers) + 1):
+            cell = ws.cell(row=1, column=col)
+            cell.font = Font(bold=True)
+            ws.column_dimensions[get_column_letter(col)].width = 18
+        ws.freeze_panes = "A2"
+
+    setup_sheet(ws_income)
+    setup_sheet(ws_expense)
+
+    total_income = 0.0
+    total_expense = 0.0
+
+    for it in items:
+        row = [it["date"], it["category"], float(it["amount"]), it.get("note", "")]
+        if it["type"] == "income":
+            ws_income.append(row)
+            total_income += float(it["amount"])
+        else:
+            ws_expense.append(row)
+            total_expense += float(it["amount"])
+
+    # Totals rows
+    def add_total(ws, label: str, value: float):
+        ws.append(["", label, value, ""])  # place total under Monto column
+        last_row = ws.max_row
+        ws.cell(row=last_row, column=2).font = Font(bold=True)
+        ws.cell(row=last_row, column=3).font = Font(bold=True)
+        ws.cell(row=last_row, column=2).alignment = Alignment(horizontal="right")
+
+    add_total(ws_income, "Total Ingresos", total_income)
+    add_total(ws_expense, "Total Gastos", total_expense)
+
+    # Summary sheet
+    ws_sum = wb.create_sheet("Resumen")
+    ws_sum.append(["Concepto", "Monto"])
+    ws_sum["A1"].font = Font(bold=True)
+    ws_sum["B1"].font = Font(bold=True)
+    ws_sum.append(["Ingresos", total_income])
+    ws_sum.append(["Gastos", total_expense])
+    ws_sum.append(["Ahorro Neto", total_income - total_expense])
+    ws_sum.column_dimensions["A"].width = 22
+    ws_sum.column_dimensions["B"].width = 18
+
+    buf = BytesIO()
+    wb.save(buf)
+    content = buf.getvalue()
+    buf.close()
+
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=transacciones.xlsx"},
+    )
+
+
 # PDF report (simple summary)
 @app.get("/reports/summary.pdf")
 def pdf_report(user: dict = Depends(get_current_user)):
