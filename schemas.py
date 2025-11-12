@@ -1,48 +1,49 @@
 """
-Database Schemas
+Database Schemas for Personal Finance Manager
 
-Define your MongoDB collection schemas here using Pydantic models.
-These schemas are used for data validation in your application.
-
-Each Pydantic model represents a collection in your database.
-Model name is converted to lowercase for the collection name:
-- User -> "user" collection
-- Product -> "product" collection
-- BlogPost -> "blogs" collection
+Each Pydantic model represents a MongoDB collection. The collection name is the
+lowercased class name (e.g., User -> "user", Transaction -> "transaction").
 """
+from pydantic import BaseModel, Field, EmailStr
+from typing import Optional, Literal
+from datetime import datetime
 
-from pydantic import BaseModel, Field
-from typing import Optional
-
-# Example schemas (replace with your own):
 
 class User(BaseModel):
-    """
-    Users collection schema
-    Collection name: "user" (lowercase of class name)
-    """
     name: str = Field(..., description="Full name")
-    email: str = Field(..., description="Email address")
-    address: str = Field(..., description="Address")
-    age: Optional[int] = Field(None, ge=0, le=120, description="Age in years")
-    is_active: bool = Field(True, description="Whether user is active")
+    email: EmailStr = Field(..., description="Unique email address")
+    hashed_password: str = Field(..., description="BCrypt hashed password")
+    photo_url: Optional[str] = Field(None, description="Avatar URL")
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
-class Product(BaseModel):
-    """
-    Products collection schema
-    Collection name: "product" (lowercase of class name)
-    """
-    title: str = Field(..., description="Product title")
-    description: Optional[str] = Field(None, description="Product description")
-    price: float = Field(..., ge=0, description="Price in dollars")
-    category: str = Field(..., description="Product category")
-    in_stock: bool = Field(True, description="Whether product is in stock")
 
-# Add your own schemas here:
-# --------------------------------------------------
+class Transaction(BaseModel):
+    user_id: str = Field(..., description="Owner user id (string ObjectId)")
+    type: Literal["income", "expense"] = Field(..., description="Transaction type")
+    amount: float = Field(..., gt=0, description="Positive amount")
+    category: str = Field(..., description="Category name")
+    date: datetime = Field(..., description="Transaction date")
+    note: Optional[str] = Field(None, description="Optional note")
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
-# Note: The Flames database viewer will automatically:
-# 1. Read these schemas from GET /schema endpoint
-# 2. Use them for document validation when creating/editing
-# 3. Handle all database operations (CRUD) directly
-# 4. You don't need to create any database endpoints!
+
+class Goal(BaseModel):
+    user_id: str = Field(..., description="Owner user id (string ObjectId)")
+    name: str = Field(..., description="Goal name, e.g., 'Trip to Japan'")
+    target_amount: float = Field(..., gt=0, description="Target amount to reach")
+    current_amount: float = Field(0, ge=0, description="Accumulated amount")
+    deadline: Optional[datetime] = Field(None, description="Optional deadline")
+    achieved: bool = Field(False, description="Whether goal is achieved")
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class Notification(BaseModel):
+    user_id: str
+    message: str
+    type: Literal["info", "warning", "success"] = "info"
+    read: bool = False
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
